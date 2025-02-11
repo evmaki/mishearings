@@ -20,7 +20,7 @@ document.querySelector("#frameSize").addEventListener("input", (e) => {
     MoonshineSettings.FRAME_SIZE = e.target.value;
 });
 
-MoonshineSettings.MAX_SPEECH_SECS = 1.5;
+MoonshineSettings.MAX_SPEECH_SECS = 0.7;
 document.querySelector("#bufferSizeValue").innerHTML =
     MoonshineSettings.MAX_SPEECH_SECS + "s";
 document.querySelector("#bufferSize").value = MoonshineSettings.MAX_SPEECH_SECS;
@@ -32,7 +32,10 @@ document.querySelector("#bufferSize").addEventListener("input", (e) => {
 
 MoonshineSettings.MAX_RECORD_MS = undefined; // Unlimited recording length
 
-// generate the cool title text
+var currentState = undefined;
+var actionBlocked = true;
+
+// generate the font-randomized title text
 (() => {
     const fontFamilies = [
         "Helvetica",
@@ -53,6 +56,47 @@ MoonshineSettings.MAX_RECORD_MS = undefined; // Unlimited recording length
     }
 })();
 
+function showModal(selector) {
+    hideModals();
+    actionBlocked = true;
+    currentState = "modal";
+    document.querySelector(selector).style.setProperty("display", "block");
+    document
+        .querySelector("#modalOverlay")
+        .style.setProperty("display", "block");
+}
+
+function hideModals() {
+    actionBlocked = false;
+    currentState = "idle";
+    document.querySelectorAll(".modal").forEach((element) => {
+        element.style.setProperty("display", "none");
+    });
+    document
+        .querySelector("#modalOverlay")
+        .style.setProperty("display", "none");
+}
+
+// initialize the modals
+(() => {
+    document
+        .querySelector("#modalOverlay")
+        .addEventListener("click", hideModals);
+
+    document.querySelectorAll("[data-modal-target]").forEach((element) => {
+        var target = element.getAttribute("data-modal-target");
+        element.addEventListener("click", () => {
+            showModal(target);
+        });
+    });
+
+    document.querySelectorAll("[data-modal-dismiss]").forEach((element) => {
+        element.addEventListener("click", () => {
+            hideModals();
+        });
+    });
+})();
+
 // load button
 document.querySelector("#loadButton").addEventListener("click", async () => {
     await Tone.start();
@@ -60,17 +104,25 @@ document.querySelector("#loadButton").addEventListener("click", async () => {
     document.querySelector("#splashContainer").remove();
 
     // enable settings menu
-    document.querySelector('[data-modal-target="#settingsModal"]').removeAttribute("disabled");
+    document
+        .querySelector('[data-modal-target="#settingsModal"]')
+        .removeAttribute("disabled");
 });
 
 const sketch = (p) => {
     // audio
     let envelope, transcriber, sampler, recorder, player;
-    var loading = false;
-    var playing = false;
     var recording = false;
     var audioPreset;
-    setAudioPreset("assets/sound/eno.m4a");
+    const audioPresets = [
+        ["Brian Eno", "eno.m4a"],
+        ["Numbers station", "numbers.m4a"],
+        ["Ever tried, ever failed", "beckett.wav"],
+    ];
+    audioPresets.forEach((v, i) => {
+        audioPresets[i][1] = "assets/sound/" + v[1];
+    });
+    setAudioPreset(audioPresets[0][1]);
 
     // visual
     let points = [];
@@ -80,41 +132,8 @@ const sketch = (p) => {
     // interface
     const grabRadius = 10;
     let grabbedText = undefined;
-    let grabbing = false;
     var modalOpen = false;
-
-    function setAudioPreset(presetUrl) {
-        audioPreset = presetUrl;
-        // set the value in the dropdown
-        if (
-            audioPreset !== "assets/sound/numbers.m4a" &&
-            audioPreset !== "assets/sound/beckett.wav" &&
-            audioPreset !== "assets/sound/eno.m4a"
-        ) {
-            document.querySelector("#audioRecordingOption").value = audioPreset;
-            document.querySelector("#audioRecordingOption").setAttribute("selected", "")
-            document.querySelector("#audioRecordingOption").removeAttribute("disabled")
-            document.querySelector("#audioRecordingOption").innerHTML = "Recorded audio";
-        }
-        document.querySelector("#audioPreset").value = audioPreset;
-        // set the source in the preview
-        document
-            .querySelector("#audioPresetSource")
-            .setAttribute("src", audioPreset);
-        // load it in the preview
-        document.querySelector("#audioPresetPreview").load();
-        new Tone.ToneAudioBuffer(audioPreset, (buffer) => {
-            sampler.buffer = buffer;
-        });
-    }
-
-    document.querySelector("#audioPreset").addEventListener("input", (e) => {
-        setAudioPreset(e.target.value);
-    });
-
-    document.querySelector("#clearCanvasButton").addEventListener("click", () => {
-        textQueue = []
-    });
+    // const states = ["loading", "idle", "grabbing", "playing", "modal"];
 
     function pushText(text) {
         textQueue.push({
@@ -133,11 +152,12 @@ const sketch = (p) => {
             {
                 onModelLoadStarted() {
                     console.log("onModelLoadStarted()");
-                    loading = true;
+                    currentState = "loading";
                 },
                 onModelLoaded() {
                     console.log("onModelLoaded()");
-                    loading = false;
+                    currentState = "idle";
+                    actionBlocked = true;
                 },
                 onTranscribeStarted() {
                     // console.log("onTranscribeStarted()");
@@ -147,7 +167,7 @@ const sketch = (p) => {
                 },
                 onTranscriptionUpdated(text) {
                     // don't bother drawing empty transcripts, and don't draw when mouse isn't clicked
-                    if (text && playing) {
+                    if (text && currentState == "playing") {
                         pushText(text);
                     }
                     // play the audio sitting in the transcriber buffer
@@ -171,10 +191,10 @@ const sketch = (p) => {
              *                                        |
              *                                 [getAudioBuffer()] -> [Player] -> Output
              *
-             * The idea here is to mangle the speech going into the StreamTranscriber using the
+             * The idea is to mangle the speech going into the StreamTranscriber using the
              * GrainPlayer. Then we eavesdrop on the actual frames going into Moonshine using
-             * the .getAudioBuffer() method of the StreamTranscriber. This allows us to play back
-             * the audio exactly as the model hears it.
+             * the .getAudioBuffer() method of StreamTranscriber. This allows us to play back
+             * the audio frames exactly as the model hears them.
              */
             sampler = new Tone.GrainPlayer(audioPreset);
             sampler.loop = true;
@@ -204,16 +224,18 @@ const sketch = (p) => {
             envelope.connect(filter);
             filter.toDestination();
 
-            /**
-             * ideal API:
-             *
-             * envelope.connect(transcriber)
-             */
+            // ideal API:
+            // envelope.connect(transcriber)
+            // this would require transcriber to be a MediaStreamAudioDestinationNode
 
             player = new Tone.Player(transcriber.getAudioBuffer());
             player.toDestination();
         });
     };
+
+    // *****************************************
+    // rendering
+    // *****************************************
 
     function drawBufferingLine() {
         if (points.length > 0) {
@@ -238,13 +260,6 @@ const sketch = (p) => {
         p.textFont("Helvetica");
     }
 
-    function dragText(i) {
-        if (i !== undefined && textQueue.length > 0) {
-            textQueue[i].x = p.mouseX;
-            textQueue[i].y = p.mouseY;
-        }
-    }
-
     function drawLatency() {
         p.textSize(8);
         p.fill(200);
@@ -262,17 +277,17 @@ const sketch = (p) => {
         p.text("Loading...", p.width / 2, p.height / 2);
     }
 
-    let tutorial = true;
     const tutorialText =
-        "Left click and drag to generate phrases.\n\n" +
-        "Right click and drag to assemble poems.\n\n" +
-        "Press q to record your own audio or read the help.\n\n";
+        "Left click/one touch and drag to generate phrases.\n\n" +
+        "Right click/two touch and drag to assemble poems.\n\n" +
+        "Press q/four touch to record your own audio or read the help.\n\n";
     var tutorialStep = 0;
 
     function drawTutorial() {
         p.textSize(16);
         p.textAlign(p.CENTER);
         p.textFont("Helvetica");
+        p.textStyle(p.NORMAL);
         p.text(
             tutorialText.substring(0, tutorialStep),
             p.width / 2,
@@ -282,7 +297,7 @@ const sketch = (p) => {
             tutorialStep++;
         }
         if (tutorialStep >= tutorialText.length) {
-            tutorial = false;
+            actionBlocked = false;
             drawBufferingLine();
         }
     }
@@ -290,12 +305,14 @@ const sketch = (p) => {
     p.draw = () => {
         p.background(255);
         p.fill(0);
-        if (!loading && tutorial) {
+        if (currentState == "loading") {
+            drawLoading();
+        } else if (textQueue.length == 0) {
             drawTutorial();
-        } else if (!loading && textQueue.length > 0) {
+        } else if (textQueue.length > 0) {
             p.cursor(p.CROSS);
             drawText();
-            if (playing) {
+            if (currentState == "playing") {
                 drawLatency();
                 drawBufferingLine();
                 if (p.mouseX > 0)
@@ -314,17 +331,15 @@ const sketch = (p) => {
                         0.5,
                         2
                     );
-            } else {
-                p.cursor(p.HAND);
             }
-        } else if (!loading && !tutorial && textQueue.length == 0) {
-            drawTutorial();
-        } else {
-            drawLoading();
         }
 
         // draw grabbing indicator
-        if (grabbing && grabbedText === undefined && textQueue.length > 0) {
+        if (
+            currentState == "grabbing" &&
+            grabbedText == undefined &&
+            textQueue.length > 0
+        ) {
             p.fill(0);
             var lerpRadius = p.lerp(
                 grabRadius - 5,
@@ -332,78 +347,238 @@ const sketch = (p) => {
                 (p.frameCount % 100) / 100
             );
             p.ellipse(p.mouseX, p.mouseY, lerpRadius, lerpRadius);
+            p.textStyle(p.NORMAL);
             textQueue.forEach((v, i) => {
                 p.text("O", v.x, v.y);
             });
         }
     };
 
-    p.keyPressed = () => {
-        if (!tutorial) {
-            if (p.key == "q") {
-                if (!modalOpen) {
-                    showModal("#settingsModal");
-                    modalOpen = true;
-                } else {
-                    hideModals();
-                    modalOpen = false;
-                }
-            } else if (p.keyCode == 32) {
-                if (grabbing && grabbedText !== undefined) {
-                    textQueue.splice(grabbedText, 1);
-                    grabbing = false;
-                    grabbedText = undefined;
+    // *****************************************
+    // user interactions
+    // *****************************************
+
+    function toggleSettingsModal(modalState) {
+        var settingsModal = document.querySelector("#settingsModal");
+        modalOpen =
+            modalState ||
+            window
+                .getComputedStyle(settingsModal)
+                .getPropertyValue("display") == "none";
+        actionBlocked = modalOpen;
+        if (modalOpen) {
+            currentState = "modal";
+            showModal("#settingsModal");
+        } else {
+            currentState = "idle";
+            hideModals();
+        }
+    }
+
+    function deleteGrabbedText() {
+        if (currentState == "grabbing" && grabbedText !== undefined) {
+            textQueue.splice(grabbedText, 1);
+            currentState = "idle";
+            grabbedText = undefined;
+        }
+    }
+
+    function startTranscription() {
+        currentState = "playing";
+        envelope.triggerAttack("0.0", 1);
+        transcriber.start();
+    }
+
+    function stopTranscription() {
+        currentState = "idle";
+        envelope.triggerRelease();
+        transcriber.stop();
+        points = [];
+    }
+
+    function dragText(i, x, y, offsetY) {
+        if (i !== undefined && textQueue.length > 0) {
+            textQueue[i].x = p.abs(x) % p.width;
+            textQueue[i].y = p.abs(y + offsetY) % p.height;
+        }
+    }
+
+    function startGrabbing(x = p.mouseX, y = p.mouseY, offsetY = 0) {
+        currentState = "grabbing";
+        if (!grabbedText) {
+            for (var i = 0; i < textQueue.length; i++) {
+                if (
+                    p.abs(x - textQueue[i].x) < grabRadius &&
+                    p.abs(y - textQueue[i].y) < grabRadius
+                ) {
+                    grabbedText = i;
+                    break;
                 }
             }
         }
-    };
+        dragText(grabbedText, x, y, offsetY);
+    }
+
+    function stopGrabbing() {
+        grabbedText = undefined;
+        currentState = "idle";
+    }
+
+    function updateBufferingLine() {
+        points.push({ x: p.mouseX, y: p.mouseY });
+    }
+
+    // *****************************************
+    // mouse events
+    // *****************************************
 
     function mousePressed() {
-        if (!tutorial && p.mouseButton == p.LEFT) {
-            envelope.triggerAttack("0.0", 1);
-            playing = true;
-            transcriber.start();
-        } else if (p.mouseButton == p.RIGHT) {
-            grabbing = true;
+        // console.log("mousePressed " + p.touches);
+        if (!actionBlocked) {
+            if (p.mouseButton == p.LEFT && currentState == "idle") {
+                startTranscription();
+            } else if (p.mouseButton == p.RIGHT && currentState == "idle") {
+                currentState = "grabbing";
+            }
         }
     }
 
     p.mouseDragged = () => {
-        if (!tutorial) {
-            if (p.mouseButton == p.LEFT && playing) {
-                points.push({ x: p.mouseX, y: p.mouseY });
-            } else if (p.mouseButton == p.RIGHT) {
-                grabbing = true;
-                if (!grabbedText) {
-                    for (var i = 0; i < textQueue.length; i++) {
-                        if (
-                            p.abs(p.mouseX - textQueue[i].x) < grabRadius &&
-                            p.abs(p.mouseY - textQueue[i].y) < grabRadius
-                        ) {
-                            grabbedText = i;
-                            break;
-                        }
-                    }
-                }
-                dragText(grabbedText);
+        // console.log("mouseDragged " + p.touches);
+        if (!actionBlocked) {
+            if (p.mouseButton == p.LEFT && currentState == "playing") {
+                updateBufferingLine();
+            } else if (p.mouseButton == p.RIGHT && currentState != "playing") {
+                startGrabbing();
             }
         }
     };
 
     function mouseReleased() {
-        if (!tutorial) {
-            if (p.mouseButton == p.LEFT) {
-                envelope.triggerRelease();
-                transcriber.stop();
-                playing = false;
-                points = [];
-            }
-            grabbedText = undefined;
-            grabbing = false;
+        // console.log("mouseReleased " + p.touches);
+        if (!actionBlocked) {
+            stopTranscription();
+            stopGrabbing();
         }
     }
 
-    // bind recording button
+    p.keyPressed = () => {
+        // console.log("keyPressed")
+        if (!actionBlocked) {
+            if (p.key == "q") {
+                toggleSettingsModal(!modalOpen);
+            } else if (p.keyCode == 32) {
+                deleteGrabbedText();
+            }
+        }
+    };
+
+    // *****************************************
+    // touch events
+    // *****************************************
+
+    p.touchStarted = () => {
+        // console.log("touchStarted " + p.touches);
+        if (!actionBlocked) {
+            if (p.touches.length == 4) {
+                stopGrabbing();
+                stopTranscription();
+                toggleSettingsModal(true);
+            }
+        }
+    };
+
+    p.touchMoved = () => {
+        // console.log("touchMoved " + p.touches)
+        if (!actionBlocked) {
+            if (p.touches.length == 1 && currentState == "idle") {
+                startTranscription();
+            } else if (p.touches.length == 2) {
+                if (currentState == "playing") {
+                    stopTranscription();
+                }
+                // grab with the second touch
+                startGrabbing(p.touches[1].x, p.touches[1].y, -50);
+            }
+        }
+    };
+
+    p.touchEnded = () => {
+        // console.log("touchEnded " + p.touches);
+        if (!actionBlocked) {
+            if (currentState == "playing") {
+                stopTranscription()
+            }
+            else if (currentState == "grabbing" && p.touches.length != 2) {
+                stopGrabbing()
+            }
+            else if (currentState == "grabbing" && p.touches.length == 2) {
+                deleteGrabbedText()
+            }
+        }
+    };
+
+    // *****************************************
+    // settings
+    // *****************************************
+
+    // initialize the audio presets dropdown
+    (() => {
+        var dropdown = document.querySelector("#audioPreset");
+
+        audioPresets.forEach((audioPreset) => {
+            var option = document.createElement("option");
+            option.setAttribute("value", audioPreset[1]);
+            option.innerHTML = audioPreset[0];
+            dropdown.appendChild(option);
+        });
+
+        var option = document.createElement("option");
+        option.setAttribute("value", "");
+        option.setAttribute("id", "audioRecordingOption");
+        option.setAttribute("disabled", "");
+        option.innerHTML = "";
+        dropdown.appendChild(option);
+
+        dropdown.addEventListener("input", (e) => {
+            setAudioPreset(e.target.value);
+        });
+    })();
+
+    function setAudioPreset(presetUrl) {
+        audioPreset = presetUrl;
+        // set the value in the dropdown
+        if (!audioPresets.some((preset) => preset[1] == audioPreset)) {
+            document.querySelector("#audioRecordingOption").value = audioPreset;
+            document
+                .querySelector("#audioRecordingOption")
+                .setAttribute("selected", "");
+            document
+                .querySelector("#audioRecordingOption")
+                .removeAttribute("disabled");
+            document.querySelector("#audioRecordingOption").innerHTML =
+                "Recorded audio";
+        }
+        document.querySelector("#audioPreset").value = audioPreset;
+        // set the source in the preview
+        document
+            .querySelector("#audioPresetSource")
+            .setAttribute("src", audioPreset);
+        // load it in the preview
+        document.querySelector("#audioPresetPreview").load();
+        new Tone.ToneAudioBuffer(audioPreset, (buffer) => {
+            sampler.buffer = buffer;
+        });
+    }
+
+    // clear canvas button
+    document
+        .querySelector("#clearCanvasButton")
+        .addEventListener("click", () => {
+            textQueue = [];
+        });
+
+    // record button
     document
         .querySelector("#audioRecordButton")
         .addEventListener("click", (e) => {
@@ -422,7 +597,7 @@ const sketch = (p) => {
                 .querySelector("#audioRecordButton")
                 .setAttribute("disabled", "");
 
-            // Tone.UserMedia() sometimes provides a stream of the browser audio (not the chosen mic), so use the native method to get the device ID
+            // Tone.UserMedia() sometimes provides a stream of the browser audio (not the mic), so use the native method to get the device ID
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: true,
             });
@@ -467,6 +642,10 @@ const sketch = (p) => {
             });
         });
     }
+
+    // *****************************************
+    // math and utilities
+    // *****************************************
 
     function rescale(value, x, y, a, b) {
         return a + ((value - x) * (b - a)) / (y - x);

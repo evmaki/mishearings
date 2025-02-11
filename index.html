@@ -28,12 +28,12 @@
                 <div class="modal-content">
                   <div class="modal-body">
                     <h2>what is this?</h2>
-                    create dadaist poetry by transcribing mangled speech with a <a href="https://www.npmjs.com/package/@usefulsensors/moonshine-js" target="_blank" rel="noopener noreferrer">tiny speech-to-text model running in your web browser</a>. as you click, drag, and draw on the canvas, you will hear the mangled speech going into the model, and the model's attempts to transcribe it will appear. you can assemble these surreal phrases into poetry by right clicking and dragging them into place.
+                    create dadaist poetry by transcribing mangled speech with a <a href="https://www.npmjs.com/package/@usefulsensors/moonshine-js" target="_blank" rel="noopener noreferrer">tiny speech-to-text model running in your web browser</a>. as you draw on the canvas, you will hear the mangled speech going into the model, and the model's attempts to transcribe it will appear. you can assemble these surreal phrases into poetry by dragging them into place.
                     <h2>controls</h2>
                     <ul>
-                        <li><b>left click and drag:</b> mangle audio and generate text.</li>
-                        <li><b>right click and drag:</b> move text. press space while dragging to delete.</li>
-                        <li><b>q:</b> open menu (you can change/record audio and adjust model settings).</li>
+                        <li><b>left click/one touch and drag:</b> mangle audio and generate text.</li>
+                        <li><b>right click/two touch and drag:</b> move text. press space or tap with a third finger while dragging to delete.</li>
+                        <li><b>q/four touch:</b> open menu. you can record audio and adjust settings.</li>
                     </ul>
                     <h2>privacy</h2>
                     the model is running in your web browser, so nothing leaves your computer. all of the inferences are happening here; all of the audio you record stays here.
@@ -75,10 +75,7 @@
                     <div class="mb-3">
                         <label for="audioPreset" class="form-label">Sound preset</label>
                         <select class="form-select" id="audioPreset" style="width: 100%;">
-                            <option value="assets/sound/eno.m4a">Brian Eno</option>
-                            <option value="assets/sound/numbers.m4a">Numbers station</option>
-                            <option value="assets/sound/beckett.wav">Ever tried, ever failed</option>
-                            <option id="audioRecordingOption" value="" disabled></option>
+                            <!-- preset options are initialized in index.js -->
                         </select>
                     </div>
                     <div style="margin-top: 8px; margin-bottom: 24px; width: 100%; display: flex; align-items: center; justify-content: space-between;">
@@ -126,7 +123,6 @@
               </div>
         </div>
         <div id="modalOverlay"></div>
-        <script src="assets/modal.js"></script>
         <script type="module" src="index.js"></script>
     </body>
 </html>
