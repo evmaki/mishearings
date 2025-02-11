@@ -1,0 +1,21 @@
+{
+  "name": "mishearings",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "npm uninstall @usefulsensors/moonshine-js && npm install ../moonshine-js && npx vite"
+  },
+  "author": "Evan King",
+  "license": "MIT",
+  "description": "Draw dadaist poetry by mangling and transcribing speech.",
+  "dependencies": {
+    "@usefulsensors/moonshine-js": "file:../moonshine-js",
+    "p5": "^1.11.3",
+    "tone": "^15.0.4"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.0",
+    "@rollup/plugin-terser": "^0.4.4",
+    "vite": "^6.1.0"
+  }
+}

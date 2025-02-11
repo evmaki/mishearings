@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>mishearings - assemble dadaist poems from transcriptions of mangled speech</title>
+        <meta name="description" content="Compose Dadaist poems by transcribing mangled speech with a Moonshine speech-to-text model running in your web browser. Built with moonshine-js.">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+        <link rel="stylesheet" href="assets/style.css">
+        <link rel="icon" type="image/png" href="assets/favicon.png">
+    </head>
+    <body oncontextmenu="return false;">
+        <div class="container-sm text-center" id="splashContainer">
+            <div class="row">
+                <h1 id="mishearings"></h1>
+                <p>assemble dadaist poems from transcriptions of mangled speech.</p>
+            </div>
+            <div class="row">
+                <button type="button" class="btn" id="loadButton">
+                    Start
+                </button>
+                <button type="button" class="btn" id="helpButton" data-modal-target="#helpModal">
+                    Help
+                </button>
+            </div>
+        </div>
+        <div class="modal" id="helpModal">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                  <div class="modal-body">
+                    <h2>what is this?</h2>
+                    create dadaist poetry by transcribing mangled speech with a <a href="https://www.npmjs.com/package/@usefulsensors/moonshine-js">tiny speech-to-text model running in your web browser</a>. as you click, drag, and draw on the canvas, you will hear the mangled speech going into the model, and the model's attempts to transcribe nonsense will appear. you can assemble these surreal phrases into poetry by right clicking and dragging them into place.
+                    <h2>controls</h2>
+                    <ul>
+                        <li><b>left click and drag:</b> mangle audio and generate text.</li>
+                        <li><b>right click and drag:</b> move text. press space while dragging to delete.</li>
+                        <li><b>q:</b> open menu (you can change/record audio and adjust model settings).</li>
+                    </ul>
+                    <h2>privacy</h2>
+                    the great thing about on-device AI/ML is that nothing leaves your computer. all of the inferences are happening on your device; all of the audio you record stays on your computer.
+                    <h2>safety</h2>
+                    speech-to-text models are designed to transcribe the words that people say––good or bad. people sometimes say things we don't agree with, or things that are harmful or offensive. since this project feeds the model weird audio, you should expect weird output. in rare cases it may be offensive. i assume no responsibility for the words that appear while you use this project.
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn" data-modal-target="#settingsModal">Settings</button>
+                    <button type="button" class="btn btn-primary" data-modal-dismiss>Close</button>
+                  </div>
+                </div>
+              </div>
+        </div>
+        <div class="modal" id="settingsModal">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                  <div class="modal-body">
+                    <h2>settings</h2>
+                    <div class="mb-3">
+                        <label for="audioPreset" class="form-label">Sound preset</label>
+                        <select disabled class="form-select" id="audioPreset" style="width: 100%;">
+                            <option value="assets/sound/eno.m4a">Brian Eno</option>
+                            <option value="assets/sound/numbers.m4a">Numbers station</option>
+                            <option value="assets/sound/beckett.wav">Ever tried, ever failed</option>
+                            <option value="" disabled>Recorded audio</option>
+                        </select>
+                    </div>
+                    <div style="margin-top: 8px; margin-bottom: 24px; width: 100%; display: flex; align-items: center; justify-content: space-between;">
+                        <div style="width: 85%; display: flex;">
+                            <audio class="audio" id="audioPresetPreview" style="width: 100%;">
+                                <source id="audioPresetSource">
+                                    Your browser does not support the audio element.
+                                </source>
+                            </audio>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-danger" id="audioRecordButton" disabled>Record</button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="frameSize" class="form-label">Frame size</label>
+                        <div class="form-text-sm">How frequently the model generates an output.</div>
+                        <input type="range" class="form-range" id="frameSize" min="50" max="2000" step="5">
+                        <div class="text-center">
+                            <span id="frameSizeValue"></span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="bufferSize" class="form-label">Buffer size</label>
+                        <div class="form-text">How much audio to accumulate before starting fresh.</div>
+                        <input type="range" class="form-range" id="bufferSize" min="0.5" max="2" step="0.1">
+                        <div class="text-center">
+                            <span id="bufferSizeValue"></span>
+                        </div>
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn" data-modal-target="#helpModal">Help</button>
+                    <button type="button" class="btn btn-primary" data-modal-dismiss>Close</button>
+                  </div>
+                </div>
+              </div>
+        </div>
+        <div id="modalOverlay"></div>
+        <script src="assets/modal.js"></script>
+        <script type="module" src="index.js"></script>
+    </body>
+</html>
