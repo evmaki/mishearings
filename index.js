@@ -59,10 +59,8 @@ document.querySelector("#loadButton").addEventListener("click", async () => {
     new p5(sketch);
     document.querySelector("#splashContainer").remove();
 
-    // enable audio configuration in settings menu
-    document.querySelector("#audioPreset").removeAttribute("disabled");
-    document.querySelector("#audioPresetPreview").setAttribute("controls", "");
-    document.querySelector("#audioRecordButton").removeAttribute("disabled");
+    // enable settings menu
+    document.querySelector('[data-modal-target="#settingsModal"]').removeAttribute("disabled");
 });
 
 const sketch = (p) => {
@@ -89,14 +87,16 @@ const sketch = (p) => {
         audioPreset = presetUrl;
         // set the value in the dropdown
         if (
-            audioPreset == "assets/sound/numbers.m4a" ||
-            audioPreset == "assets/sound/beckett.wav" ||
-            audioPreset == "assets/sound/eno.m4a"
+            audioPreset !== "assets/sound/numbers.m4a" &&
+            audioPreset !== "assets/sound/beckett.wav" &&
+            audioPreset !== "assets/sound/eno.m4a"
         ) {
-            document.querySelector("#audioPreset").value = audioPreset;
-        } else {
-            document.querySelector("#audioPreset").value = "";
+            document.querySelector("#audioRecordingOption").value = audioPreset;
+            document.querySelector("#audioRecordingOption").setAttribute("selected", "")
+            document.querySelector("#audioRecordingOption").removeAttribute("disabled")
+            document.querySelector("#audioRecordingOption").innerHTML = "Recorded audio";
         }
+        document.querySelector("#audioPreset").value = audioPreset;
         // set the source in the preview
         document
             .querySelector("#audioPresetSource")
@@ -110,6 +110,10 @@ const sketch = (p) => {
 
     document.querySelector("#audioPreset").addEventListener("input", (e) => {
         setAudioPreset(e.target.value);
+    });
+
+    document.querySelector("#clearCanvasButton").addEventListener("click", () => {
+        textQueue = []
     });
 
     function pushText(text) {
@@ -144,18 +148,7 @@ const sketch = (p) => {
                 onTranscriptionUpdated(text) {
                     // don't bother drawing empty transcripts, and don't draw when mouse isn't clicked
                     if (text && playing) {
-                        if (textQueue.length > 0) {
-                            var last = textQueue[textQueue.length - 1];
-                            // try to avoid overwriting the last transcription on the canvas
-                            if (
-                                p.abs(last.x - p.mouseX) > 2 &&
-                                p.abs(last.y - p.mouseY) > 2
-                            ) {
-                                pushText(text);
-                            }
-                        } else {
-                            pushText(text);
-                        }
+                        pushText(text);
                     }
                     // play the audio sitting in the transcriber buffer
                     player.buffer = transcriber.getAudioBuffer();
@@ -191,7 +184,7 @@ const sketch = (p) => {
                 attackCurve: "linear",
                 sustain: 0.6,
                 decay: 0.7,
-                release: 1,
+                release: 0.1,
                 releaseCurve: "linear",
             });
 
@@ -339,6 +332,9 @@ const sketch = (p) => {
                 (p.frameCount % 100) / 100
             );
             p.ellipse(p.mouseX, p.mouseY, lerpRadius, lerpRadius);
+            textQueue.forEach((v, i) => {
+                p.text("O", v.x, v.y);
+            });
         }
     };
 
@@ -367,6 +363,8 @@ const sketch = (p) => {
             envelope.triggerAttack("0.0", 1);
             playing = true;
             transcriber.start();
+        } else if (p.mouseButton == p.RIGHT) {
+            grabbing = true;
         }
     }
 
@@ -396,8 +394,8 @@ const sketch = (p) => {
         if (!tutorial) {
             if (p.mouseButton == p.LEFT) {
                 envelope.triggerRelease();
-                playing = false;
                 transcriber.stop();
+                playing = false;
                 points = [];
             }
             grabbedText = undefined;
@@ -423,12 +421,19 @@ const sketch = (p) => {
             document
                 .querySelector("#audioRecordButton")
                 .setAttribute("disabled", "");
-            const mic = new Tone.UserMedia();
-            await mic.open();
 
-            recorder = new Tone.Recorder();
+            // Tone.UserMedia() sometimes provides a stream of the browser audio (not the chosen mic), so use the native method to get the device ID
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+            });
+
+            const mic = new Tone.UserMedia();
+            await mic.open(stream.id);
+
             var mono = new Tone.Mono();
             mic.connect(mono);
+
+            recorder = new Tone.Recorder();
             mono.connect(recorder);
 
             document.querySelector("#audioRecordButton").innerHTML = "Stop";
@@ -456,6 +461,9 @@ const sketch = (p) => {
             new Tone.ToneAudioBuffer(url, (buffer) => {
                 sampler.buffer = buffer;
                 sampler.start();
+                document
+                    .querySelector("#audioPreset")
+                    .setAttribute("type", recorder.mimeType);
             });
         });
     }
